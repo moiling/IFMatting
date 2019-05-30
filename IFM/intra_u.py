@@ -8,7 +8,7 @@ import math
 import numpy as np
 from scipy.sparse import csr_matrix
 
-from find_non_local_neighbors import find_non_local_neighbors
+from IFM.find_non_local_neighbors import find_non_local_neighbors
 
 """
 % Color Similarity Non-local Pixel Affinities
@@ -54,6 +54,7 @@ def intra_u(image, trimap, k, features):
     in_indices = np.tile(in_indices.reshape(in_indices.shape[0], 1), neighbors_indices.shape[1])
 
     # MATLAB:max(1 - sum(abs(features(in_indices(:), :) - features(neighbors_indices(:), :)), 2) / size(features, 2), 0)
+    # (10)
     flows = np.max(1 - np.sum(np.abs(features[in_indices.flatten(), :] - features[neighbors_indices.flatten(), :]), 1)
                    .reshape(in_indices.flatten().shape[0], 1) / features.shape[1], axis=1, initial=0)
 

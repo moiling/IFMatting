@@ -6,8 +6,8 @@
 import numpy as np
 from scipy.sparse import csr_matrix
 
-from find_non_local_neighbors import find_non_local_neighbors
-from local_linear_embedding import local_linear_embedding
+from IFM.find_non_local_neighbors import find_non_local_neighbors
+from IFM.local_linear_embedding import local_linear_embedding
 
 """
 % Color Mixture Non-local Pixel Affinities
@@ -46,6 +46,7 @@ def color_mixture(image, trimap, k, features):
 
     flows = np.zeros((in_indices.shape[0], neighbors_indices.shape[1]))
 
+    # use lle to solve (1)
     for i in range(in_indices.shape[0]):
         flows[i, :] = local_linear_embedding(features[in_indices[i], :].T,
                                              features[neighbors_indices[i, :].T, :],

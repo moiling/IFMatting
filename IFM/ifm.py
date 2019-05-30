@@ -36,27 +36,17 @@ title={Designing Effective Inter-Pixel Information Flow for Natural Image Mattin
 year={2017},
 }
 """
-
-import os
-
-import matplotlib.pyplot as plt
 import numpy as np
 import scipy
 from sklearn.neighbors import KDTree
 
 from scipy.sparse import csr_matrix as csr, diags
-from closed_form_matting import compute_weight
+from IFM.closed_form_matting import compute_weight
 
-from lle import barycenter_kneighbors_graph as bkg
-from lle import barycenter_kneighbors_graph_ku as bkg_ku
-from color_mixture import color_mixture as cm
-from intra_u import intra_u as uu
-
-
-def color_mixture(k, feature):
-
-    # use barycenter k neighbors graph to compute (1)
-    return bkg(feature, n_neighbors=k)
+from IFM.lle import barycenter_kneighbors_graph_ku as bkg_ku
+from IFM.color_mixture import color_mixture as cm
+from IFM.intra_u import intra_u as uu
+import matplotlib.pyplot as plt
 
 
 def k_to_u(alpha, k, feature):
@@ -121,39 +111,6 @@ def local(img, trimap):
     return w_l
 
 
-def intra_u(alpha, k, feature):
-    n = feature.shape[0]
-    index = np.arange(n)
-
-    unknown = feature[(alpha != 0) & (alpha != 1)]
-    unknown_index = index[(alpha != 0) & (alpha != 1)]
-
-    # nearest background pixel to unknown
-    kd_tree = KDTree(unknown, leaf_size=30, metric='euclidean')
-    nu = kd_tree.query(unknown, k=k, return_distance=False)
-    unk_nbr_true_ind = unknown_index[nu]
-    # TODO
-    unk_nu_ind = np.asarray([int(i / k) for i in range(nu.shape[0] * nu.shape[1])])
-    unk_nu_true_ind = unknown_index[unk_nu_ind]
-
-    nbr = unknown[nu]
-    nbr = np.swapaxes(nbr, 1, 2)
-    unk = unknown.reshape((unknown.shape[0], unknown.shape[1], 1))
-
-    x = nbr - unk
-    x = np.abs(x)
-    y = 1 - np.sum(x, axis=1)
-    y[y < 0] = 0
-
-    row = unk_nu_true_ind
-    col = unk_nbr_true_ind.ravel()
-    data = y.ravel()
-    z = csr((data, (col, row)), shape=(n, n))
-    w_uu = csr((data, (row, col)), shape=(n, n))
-    w_uu = w_uu + z
-    return w_uu
-
-
 def eq1(w_cm, w_uu, w_l, n_p, T, a_k, w_f, params):
     d_cm = diags(csr.sum(w_cm, axis=1).A.ravel(), format='csr')
     d_uu = diags(csr.sum(w_uu, axis=1).A.ravel(), format='csr')
@@ -173,98 +130,6 @@ def eq1(w_cm, w_uu, w_l, n_p, T, a_k, w_f, params):
     # use preconditioned conjugate gradient to solve the linear systems
     solution = scipy.sparse.linalg.cg(A, b, x0=w_f, tol=1e-7, maxiter=2000, M=None, callback=None)
     return solution[0]
-    # solution = solve_cg(A, b, 0, 2000, 1e-5, print_info=True)
-    # solution = np.clip(solution, 0, 1)
-    # return solution
-
-
-def solve_cg(
-        A,
-        b,
-        rtol,
-        max_iter,
-        atol=0.0,
-        x0=None,
-        precondition=None,
-        callback=None,
-        print_info=False,
-):
-    """
-    Solve the linear system Ax = b for x using preconditioned conjugate
-    gradient descent.
-
-    A: np.ndarray of dtype np.float64
-        Must be a square symmetric matrix
-    b: np.ndarray of dtype np.float64
-        Right-hand side of linear system
-    rtol: float64
-        Conjugate gradient descent will stop when
-        norm(A x - b) < relative_tolerance norm(b)
-    max_iter: int
-        Maximum number of iterations
-    atol: float64
-        Conjugate gradient descent will stop when
-        norm(A x - b) < absolute_tolerance
-    x0: np.ndarray of dtype np.float64
-        Initial guess of solution x
-    precondition: func(r) -> r
-        Improve solution of residual r, for example solve(M, r)
-        where M is an easy-to-invert approximation of A.
-    callback: func(A, x, b)
-        callback to inspect temporary result after each iteration.
-    print_info: bool
-        If to print convergence information.
-
-    Returns
-    -------
-
-    x: np.ndarray of dtype np.float64
-        Solution to the linear system Ax = b.
-
-    """
-
-    x = np.zeros(A.shape[0]) if x0 is None else x0.copy()
-
-    if callback is not None:
-        callback(A, x, b)
-
-    if precondition is None:
-        def precondition(r):
-            return r
-
-    norm_b = np.linalg.norm(b)
-
-    r = b - A.dot(x)
-    z = precondition(r)
-    p = z.copy()
-    rz = np.inner(r, z)
-    for iteration in range(max_iter):
-        Ap = A.dot(p)
-        alpha = rz / np.inner(p, Ap)
-        x += alpha * p
-        r -= alpha * Ap
-
-        residual_error = np.linalg.norm(r)
-
-        if print_info:
-            print("iteration %05d - residual error %e" % (
-                iteration,
-                residual_error))
-
-        if callback is not None:
-            callback(A, x, b)
-
-        if residual_error < atol or residual_error < rtol * norm_b:
-            break
-
-        z = precondition(r)
-        beta = 1.0 / rz
-        rz = np.inner(r, z)
-        beta *= rz
-        p *= beta
-        p += z
-
-    return x
 
 
 def init_params(img, h, w):
@@ -297,7 +162,12 @@ def init_params(img, h, w):
     return params, feature_cm, feature_ku, feature_uu
 
 
-def matting(image, trimap):
+def information_flow_matting(image, trimap, use_k_u=False):
+    # load image
+    image = plt.imread(image)  # (x, y, 3)
+    trimap = plt.imread(trimap)  # 0.50196081 Grey
+    trimap = trimap[:, :, 0]  # Grey R=G=B, only use R. (x, y, 1)
+
     print('Start matting.')
 
     h, w, _ = image.shape
@@ -309,7 +179,7 @@ def matting(image, trimap):
     w_cm = cm(image, trimap, params['k_cm'], feature_cm)
 
     # TODO 判断是否执行k_u
-    params['use_k_u'] = False
+    params['use_k_u'] = use_k_u
 
     if params['use_k_u']:
         print('K-to-U information flow.')
@@ -337,36 +207,3 @@ def matting(image, trimap):
     solution = eq1(w_cm, w_uu, w_l, n_p, T, a_k, w_f, params)
     alpha = np.minimum(np.maximum(solution.reshape(image.shape[0], image.shape[1]), 0), 1)
     return alpha
-
-
-if __name__ == '__main__':
-
-    # file url
-    input_dir = './data/input_lowres/'
-    tri_map_dir = './data/trimap_lowres/Trimap1/'
-    save_dir = './out/test/'
-    file_name = 'plasticbag.png'
-    input_file = input_dir + file_name
-    tri_map_file = tri_map_dir + file_name
-    save_file = save_dir + file_name
-
-    # load image
-    input_image = plt.imread(input_file)  # (x, y, 3)
-    tri_map = plt.imread(tri_map_file)  # 0.50196081 Grey
-    tri_map = tri_map[:, :, 0]  # Grey R=G=B, only use R. (x, y, 1)
-
-    # mkdir and touch
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-    if not os.path.exists(save_file):
-        os.system(r"touch {}".format(save_file))
-
-    # matting
-    alpha_matte = matting(input_image, tri_map)
-
-    # save
-    plt.imsave(save_file, alpha_matte, cmap='Greys_r')
-
-    # show
-    plt.imshow(alpha_matte, cmap='Greys_r')
-    plt.show()
