@@ -19,7 +19,7 @@ from sklearn.neighbors import KDTree
 """
 
 
-def find_non_local_neighbors(image, k, features, need_search_map, search_map):
+def find_non_local_neighbors_2(image, k, features, need_search_map, search_map):
     """
     :param image:
     :param k:
@@ -43,3 +43,36 @@ def find_non_local_neighbors(image, k, features, need_search_map, search_map):
     neighbors_indices = out_indices[neighbors]
 
     return in_indices, neighbors_indices
+
+
+def find_non_local_neighbors(image, k, features, need_search_map, search_map):
+    h, w, c = image.shape
+
+    if need_search_map is None:
+        need_search_map = np.ones((h, w), dtype=np.bool8)
+
+    if search_map is None:
+        search_map = np.ones((h, w), dtype=np.bool8)
+
+
+    indices = np.arange(h * w)
+
+    inMap = need_search_map.flatten()
+    outMap = search_map.flatten()
+
+    inInd = indices[inMap]
+    outInd = indices[outMap]
+
+    if features is None:
+        features = np.stack([
+            image[:, :, 0].flatten(),
+            image[:, :, 1].flatten(),
+            image[:, :, 2].flatten(),
+        ], axis=1)
+
+    kd_tree = KDTree(features[outMap != 0, :], leaf_size=30, metric='euclidean')
+
+    neighbors = kd_tree.query(features[inMap != 0, :], k=k, return_distance=False)
+    neighbors_indices = outInd[neighbors]
+
+    return inInd, neighbors_indices

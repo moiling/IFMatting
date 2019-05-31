@@ -1,7 +1,7 @@
 import os
 
 from IFM.ifm import information_flow_matting
-from utils import save_image, show_image
+from utils.utils import save_image, show_image
 
 if __name__ == '__main__':
 

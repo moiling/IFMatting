@@ -36,102 +36,19 @@ title={Designing Effective Inter-Pixel Information Flow for Natural Image Mattin
 year={2017},
 }
 """
-import inspect
 
 import numpy as np
-import scipy
-from sklearn.neighbors import KDTree
 
-from scipy.sparse import csr_matrix as csr, diags
+from scipy.sparse import diags
 
-from IFM.lle import barycenter_kneighbors_graph_ku as bkg_ku
 from IFM.color_mixture import color_mixture as cm
 from IFM.intra_u import intra_u as uu
+from IFM.k_to_u_color_mixture import k_to_u
 from IFM.local import local
 import matplotlib.pyplot as plt
 
-
-def k_to_u(alpha, k, feature):
-
-    # pixel size
-    n = feature.shape[0]
-
-    index = np.arange(n)
-
-    fore = feature[alpha == 1]
-    fore_index = index[alpha == 1]
-
-    back = feature[alpha == 0]
-    back_index = index[alpha == 0]
-
-    unknown = feature[(alpha != 0) & (alpha != 1)]
-    unknown_index = index[(alpha != 0) & (alpha != 1)]
-
-    # nearest foreground pixel to unknown
-    kd_tree = KDTree(fore, leaf_size=30, metric='euclidean')
-    # nf 就是一个(n, 7)矩阵，每行表示找出的7个临近点，n是未知点个数，所以nf、nb的n是相同的
-    nf = kd_tree.query(unknown, k=k, return_distance=False)
-    # fore_index是一个n维向量，把nf放进去，其实就是找每一个对应的index是什么，返回的还是(n, 7)矩阵
-    nf_index = fore_index[nf]
-
-    # nearest background pixel to unknown
-    kd_tree = KDTree(back, leaf_size=30, metric='euclidean')
-    nb = kd_tree.query(unknown, k=k, return_distance=False)
-    nb_index = back_index[nb]
-
-    # 把两个(n, 7)合并成(n, 14)
-    nfb_index = np.concatenate((nf_index, nb_index), axis=1)
-
-    # feature[:,:-2]是[x, 3]，x为像素总数，在[x, 3]里找下标对应[n, 14]，变成[n, 14, 3]
-    nfb_color = feature[:, :-2][nfb_index]
-    unknown_color = unknown[:, :-2]
-
-    # compute (1)
-    w_ku = bkg_ku(unknown_color, nfb_color, nfb_index, n_neighbors=2 * k)
-
-    # 为了和颜色相乘，要加一维
-    w_ku = w_ku.reshape((w_ku.shape[0], w_ku.shape[1], 1))
-
-    nfb_weighted_color = w_ku * nfb_color
-
-    # 前7个是前景的, 计算公式(6)
-    cpf = np.sum(nfb_weighted_color[:, :k, :], axis=1) / np.sum(w_ku[:, :k], axis=1)
-    cpb = np.sum(nfb_weighted_color[:, k:, :], axis=1) / np.sum(w_ku[:, k:], axis=1)
-
-    w_f = np.zeros(n)
-    w_f[unknown_index] = np.sum(w_ku[:, 0:k, :], axis=1)[:, 0]
-    w_f[fore_index] = 1
-    # 公式(7)
-    n_p = np.sum((cpf - cpb) * (cpf - cpb), axis=1) / 3
-    n_p = csr((n_p, (unknown_index, unknown_index)), shape=(n, n))
-    return w_f, n_p
-
-
-def solve_alpha(w_cm, w_uu, w_l, n_p, tau, a_k, w_f, params):
-    d_cm = diags(csr.sum(w_cm, axis=1).A.ravel(), format='csr')
-    d_uu = diags(csr.sum(w_uu, axis=1).A.ravel(), format='csr')
-    d_l = diags(csr.sum(w_l, axis=1).A.ravel(), format='csr')
-
-    # (15)
-    l_ifm = (d_cm - w_cm).T.dot(d_cm - w_cm) + params['s_uu'] * (d_uu - w_uu) + params['s_l'] * (d_l - w_l)
-
-    if params['use_k_u']:
-        # (16)
-        A = l_ifm + params['lambda'] * tau + params['s_ku'] * n_p
-        b = (params['lambda'] * tau + params['s_ku'] * n_p).dot(w_f)
-    else:
-        # (19)
-        A = l_ifm + params['lambda'] * tau
-        b = params['lambda'] * tau * a_k
-
-    # use preconditioned conjugate gradient to solve the linear systems
-    solution = scipy.sparse.linalg.cg(A, b, x0=w_f, tol=1e-10, maxiter=5000, M=None, callback=report)
-    return solution[0]
-
-
-def report(x):
-    frame = inspect.currentframe().f_back
-    print('%4d: %e' % (frame.f_locals['iter_'], frame.f_locals['resid']))
+from IFM.solve_alpha import solve_alpha
+from utils.utils import patchBasedTrimming
 
 
 def init_params(img, h, w):
@@ -155,6 +72,7 @@ def init_params(img, h, w):
         'k_cm': 20,
         'k_ku': 7,
         'k_uu': 5,
+        's_cm': 1,
         's_ku': 0.05,
         's_uu': 0.01,
         's_l': 1,
@@ -183,10 +101,15 @@ def information_flow_matting(image, trimap, use_k_u=False):
     params['use_k_u'] = use_k_u
 
     if params['use_k_u']:
+        patchTrimmed = patchBasedTrimming(image, trimap, 0.25, 0.9, 1, 5)
+
         print('K-to-U information flow.')
-        w_f, n_p = k_to_u(alpha, params['k_ku'], feature_ku)
+        # w_f, n_p = k_to_u(alpha, params['k_ku'], feature_ku)
+        kToU, kToUconf = k_to_u(image, patchTrimmed, params['k_ku'], feature_ku)
         a_k = None
     else:
+        kToUconf = None
+        kToU = None
         w_f = None
         n_p = None
 
@@ -208,7 +131,10 @@ def information_flow_matting(image, trimap, use_k_u=False):
     # Tau is an N × N diagonal matrix with diagonal entry (p, p) 1 if p ∈ K and 0 otherwise
     tau = diags(known, format='csr')
 
-    print('solve alpha.')
-    solution = solve_alpha(w_cm, w_uu, w_l, n_p, tau, a_k, w_f, params)
-    alpha = np.minimum(np.maximum(solution.reshape(image.shape[0], image.shape[1]), 0), 1)
-    return alpha
+    print('Solving for alphas.')
+    # solution = solve_alpha(w_cm, w_uu, w_l, n_p, tau, a_k, w_f, params)
+    solution = solve_alpha(trimap, w_cm, w_uu, w_l, kToUconf, tau, a_k, kToU, params)
+    # alpha_matte = np.minimum(np.maximum(solution.reshape(image.shape[0], image.shape[1]), 0), 1)
+    alpha_matte = np.clip(solution, 0, 1).reshape(trimap.shape)
+
+    return alpha_matte

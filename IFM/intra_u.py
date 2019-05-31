@@ -30,7 +30,7 @@ from IFM.find_non_local_neighbors import find_non_local_neighbors
 """
 
 
-def intra_u(image, trimap, k, features):
+def intra_u_2(image, trimap, k, features):
     h, w, _ = image.shape
     n = h * w
 
@@ -64,3 +64,35 @@ def intra_u(image, trimap, k, features):
 
     w_uu = (w_uu + w_uu.T) / 2
     return w_uu
+
+
+def intra_u(image, trimap, k, features):
+
+    h, w, c = image.shape
+    N = h * w
+    is_fg = trimap > 0.8
+    is_bg = trimap < 0.2
+    is_known = np.logical_or(is_fg, is_bg)
+    is_unknown = np.logical_not(is_known)
+
+    if is_unknown is None:
+        is_unknown = np.ones((h, w), dtype=np.bool8)
+
+    _, neighInd = find_non_local_neighbors(image, k, features, is_unknown, is_unknown)
+
+    # This behaviour below, decreasing the xy-weight and finding a new set of neighbors, is taken
+    # from the public implementation of KNN matting by Chen et al.
+    inInd, neighInd2 = find_non_local_neighbors(image, int(np.ceil(k / 5)), features[:, -2:] / 100, is_unknown, is_unknown)
+
+    neighInd = np.concatenate([neighInd, neighInd2], axis=1)
+    features[:, -2:] /= 100.0
+
+    inInd = np.repeat(inInd, neighInd.shape[1]).reshape(-1, neighInd.shape[1])
+    flows = 1 - np.mean(np.abs(features[inInd] - features[neighInd]), axis=2)
+    flows[flows < 0] = 0
+
+    W = csr_matrix((flows.flatten(), (inInd.flatten(), neighInd.flatten())), shape=(N, N))
+
+    W = 0.5 * (W + W.T)
+
+    return W

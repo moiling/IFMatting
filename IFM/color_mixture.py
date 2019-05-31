@@ -7,7 +7,8 @@ import numpy as np
 from scipy.sparse import csr_matrix
 
 from IFM.find_non_local_neighbors import find_non_local_neighbors
-from IFM.local_linear_embedding import local_linear_embedding
+from utils.local_linear_embedding import local_linear_embedding
+from utils.utils import solve_for_weights
 
 """
 % Color Mixture Non-local Pixel Affinities
@@ -31,7 +32,7 @@ from IFM.local_linear_embedding import local_linear_embedding
 """
 
 
-def color_mixture(image, trimap, k, features):
+def color_mixture_2(image, trimap, k, features):
     h, w, _ = image.shape
     n = h * w
 
@@ -58,3 +59,31 @@ def color_mixture(image, trimap, k, features):
     w_cm = csr_matrix((flows.flatten(), (in_indices.flatten(), neighbors_indices.flatten())), shape=(n, n))
 
     return w_cm
+
+
+def color_mixture(image, trimap, k, features):
+    is_fg = trimap > 0.8
+    is_bg = trimap < 0.2
+    is_known = np.logical_or(is_fg, is_bg)
+    is_unknown = np.logical_not(is_known)
+
+    h, w, c = image.shape
+    N = h * w
+
+    if is_known is None:
+        is_known = np.ones((h, w), dtype=np.bool8)
+
+    outMap = np.ones((h, w), dtype=np.bool8)
+
+    inInd, neighInd = find_non_local_neighbors(image, k, features, is_known, outMap)
+
+    inInd = np.repeat(inInd, k).reshape(-1, k)
+    flows = solve_for_weights(features[inInd] - features[neighInd], regularization_factor=1e-10)
+
+    i = inInd.flatten()
+    j = neighInd.flatten()
+    v = flows.flatten()
+
+    W = csr_matrix((flows.flatten(), (inInd.flatten(), neighInd.flatten())), shape=(N, N))
+
+    return W
