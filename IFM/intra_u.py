@@ -49,7 +49,9 @@ def intra_u(image, trimap, k, features):
     features[:, -2:] = features[:, -2:] / 100
     in_indices, neighbors_indices_2 = find_non_local_neighbors(image, math.ceil(k / 5), features, need_search_map, search_map)
     neighbors_indices = np.hstack((neighbors_indices, neighbors_indices_2))
-    features[:, -2:] = features[:, -2:] / 100
+
+    # different. author: / 100; why?
+    features[:, -2:] = features[:, -2:] * 100
 
     in_indices = np.tile(in_indices.reshape(in_indices.shape[0], 1), neighbors_indices.shape[1])
 

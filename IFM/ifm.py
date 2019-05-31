@@ -36,16 +36,18 @@ title={Designing Effective Inter-Pixel Information Flow for Natural Image Mattin
 year={2017},
 }
 """
+import inspect
+
 import numpy as np
 import scipy
 from sklearn.neighbors import KDTree
 
 from scipy.sparse import csr_matrix as csr, diags
-from IFM.closed_form_matting import compute_weight
 
 from IFM.lle import barycenter_kneighbors_graph_ku as bkg_ku
 from IFM.color_mixture import color_mixture as cm
 from IFM.intra_u import intra_u as uu
+from IFM.local import local
 import matplotlib.pyplot as plt
 
 
@@ -105,31 +107,31 @@ def k_to_u(alpha, k, feature):
     return w_f, n_p
 
 
-def local(img, trimap):
-    umask = (trimap != 0) & (trimap != 1)
-    w_l = compute_weight(img, mask=umask).tocsr()
-    return w_l
-
-
-def eq1(w_cm, w_uu, w_l, n_p, T, a_k, w_f, params):
+def solve_alpha(w_cm, w_uu, w_l, n_p, tau, a_k, w_f, params):
     d_cm = diags(csr.sum(w_cm, axis=1).A.ravel(), format='csr')
     d_uu = diags(csr.sum(w_uu, axis=1).A.ravel(), format='csr')
     d_l = diags(csr.sum(w_l, axis=1).A.ravel(), format='csr')
 
-    l_ifm = csr.transpose(d_cm - w_cm).dot(d_cm - w_cm) + params['s_uu'] * (d_uu - w_uu) + params['s_l'] * (d_l - w_l)
+    # (15)
+    l_ifm = (d_cm - w_cm).T.dot(d_cm - w_cm) + params['s_uu'] * (d_uu - w_uu) + params['s_l'] * (d_l - w_l)
 
     if params['use_k_u']:
         # (16)
-        A = l_ifm + params['lambda'] * T + params['s_ku'] * n_p
-        b = (params['lambda'] * T + params['s_ku'] * n_p).dot(w_f)
+        A = l_ifm + params['lambda'] * tau + params['s_ku'] * n_p
+        b = (params['lambda'] * tau + params['s_ku'] * n_p).dot(w_f)
     else:
         # (19)
-        A = l_ifm + params['lambda'] * T
-        b = params['lambda'] * T * a_k
+        A = l_ifm + params['lambda'] * tau
+        b = params['lambda'] * tau * a_k
 
     # use preconditioned conjugate gradient to solve the linear systems
-    solution = scipy.sparse.linalg.cg(A, b, x0=w_f, tol=1e-7, maxiter=2000, M=None, callback=None)
+    solution = scipy.sparse.linalg.cg(A, b, x0=w_f, tol=1e-10, maxiter=5000, M=None, callback=report)
     return solution[0]
+
+
+def report(x):
+    frame = inspect.currentframe().f_back
+    print('%4d: %e' % (frame.f_locals['iter_'], frame.f_locals['resid']))
 
 
 def init_params(img, h, w):
@@ -175,7 +177,6 @@ def information_flow_matting(image, trimap, use_k_u=False):
     alpha = trimap.flatten()
 
     print('Color-mixture information flow.')
-    # w_cm = color_mixture(params['k_cm'], feature_cm)
     w_cm = cm(image, trimap, params['k_cm'], feature_cm)
 
     # TODO 判断是否执行k_u
@@ -188,12 +189,13 @@ def information_flow_matting(image, trimap, use_k_u=False):
     else:
         w_f = None
         n_p = None
+
+        # αK is a row vector with pth entry being 1 if p ∈ F and 0 otherwise
         a_k = alpha.copy()
         a_k[a_k != 1] = 0  # set all non foreground pixels to 0
         a_k[a_k == 1] = 1  # set all foreground pixels to 1
 
     print('intra u information flow.')
-    # w_uu = intra_u(alpha, params['k_uu'], feature_uu)
     w_uu = uu(image, trimap, params['k_uu'], feature_uu)
 
     print('local information flow.')
@@ -202,8 +204,11 @@ def information_flow_matting(image, trimap, use_k_u=False):
     known = alpha.copy()
     known[(alpha == 1) | (alpha == 0)] = 1
     known[(alpha != 1) & (alpha != 0)] = 0
-    T = diags(known, format='csr')  # CSR 存稀疏矩阵的一种方法
 
-    solution = eq1(w_cm, w_uu, w_l, n_p, T, a_k, w_f, params)
+    # Tau is an N × N diagonal matrix with diagonal entry (p, p) 1 if p ∈ K and 0 otherwise
+    tau = diags(known, format='csr')
+
+    print('solve alpha.')
+    solution = solve_alpha(w_cm, w_uu, w_l, n_p, tau, a_k, w_f, params)
     alpha = np.minimum(np.maximum(solution.reshape(image.shape[0], image.shape[1]), 0), 1)
     return alpha
