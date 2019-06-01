@@ -8,19 +8,30 @@ import os
 import matplotlib.pyplot as plt
 
 
-def save_image(image, save_dir, file_name):
+def save_image(image, save_dir, file_name, grey=False):
     # mkdir and touch
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
     if not os.path.exists(save_dir + file_name):
         os.system(r"touch {}".format(save_dir + file_name))
 
-    plt.imsave(save_dir + file_name, image, cmap='Greys_r')
+    if grey:
+        plt.imsave(save_dir + file_name, image, cmap='Greys_r')
+    else:
+        print(image.shape)
+        plt.imsave(save_dir + file_name, image)
 
 
 def show_image(image):
     plt.imshow(image, cmap='Greys_r')
     plt.show()
+
+
+def stack_alpha(image, alpha):
+    if len(alpha.shape) == 3:
+        alpha = alpha[:, :, 0]
+
+    return np.concatenate([image, alpha[:, :, np.newaxis]], axis=2)
 
 
 def stack_images(*images):

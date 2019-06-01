@@ -81,7 +81,10 @@ def estimate_foreground_background(
             x, y = pixel_coordinates(w, h, flat=True)
 
             # Make alpha into a vector
-            a = alpha.reshape(w * h)
+            if len(alpha.shape) == 3:
+                a = alpha[:, :, 0].reshape(w * h)
+            else:
+                a = alpha.reshape(w * h)
 
             # Build system of linear equations
             U = np.stack([a, 1 - a], axis=1)

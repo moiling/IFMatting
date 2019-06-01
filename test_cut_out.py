@@ -4,7 +4,7 @@
 # @Author  : moiling
 # @File    : test_cut_out.py
 from utils.foreground_background import estimate_foreground_background
-from utils.utils import stack_images, save_image, show_image
+from utils.utils import stack_images, save_image, show_image, stack_alpha
 import matplotlib.pyplot as plt
 
 
@@ -13,15 +13,15 @@ if __name__ == '__main__':
     file_name = 'troll.png'
 
     image = plt.imread('./data/input_lowres/' + file_name)
-    alpha = plt.imread('./out/ifm/' + file_name)
+    alpha = plt.imread('./out/demo/Trimap1/' + file_name)
 
     foreground, background = estimate_foreground_background(image, alpha, print_info=True)
 
     # Make new image from foreground and alpha
-    cutout = stack_images(foreground, alpha)
+    cutout = stack_alpha(foreground, alpha)
 
     # save
-    save_image(cutout, './out/cut_out/' + 'ifm' + '/', file_name)
+    save_image(cutout, './out/cut_out/' + 'demo/Trimap1' + '/', file_name)
 
     # show
     show_image(cutout)

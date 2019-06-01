@@ -11,7 +11,7 @@ if __name__ == '__main__':
                                            './data/trimap_lowres/' + trimap_dir + '/' + file_name,
                                            (file_name != 'net.png' and file_name != 'plasticbag.png'))  # 人工区分高透明度
     # save
-    save_image(alpha_matte, './out/test/' + trimap_dir + '/', file_name)
+    save_image(alpha_matte, './out/test/' + trimap_dir + '/', file_name, True)
 
     # show
     show_image(alpha_matte)
