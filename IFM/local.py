@@ -1,21 +1,7 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-# @Time    : 2019-05-31 18:53
-# @Author  : moiling
-# @File    : local.py
-import cv2
 import numpy as np
-from scipy.sparse import csr_matrix, spdiags, csc_matrix, diags
+from scipy.sparse import csc_matrix, diags
 
-from utils.closed_form_matting import compute_weight
-from utils.utils import imdilate, make_windows, pad, mul_matT_mat, mul_mat_mat_matT, local_rgb_normal_distributions, \
-    im2col
-
-
-def local_3(image, trimap):
-    umask = (trimap != 0) & (trimap != 1)
-    w_l = compute_weight(image, mask=umask).tocsr()
-    return w_l
+from utils.utils import imdilate, make_windows, pad, mul_matT_mat, mul_mat_mat_matT
 
 
 def local(image, trimap, window_radius=1, epsilon=1e-7):
@@ -77,57 +63,3 @@ def local(image, trimap, window_radius=1, epsilon=1e-7):
     W_row_sum[W_row_sum < 0.05] = 1.0
 
     return diags(1 / W_row_sum).dot(W)
-
-
-def local_2(image, trimap, window_radius=1, epsilon=1e-7):
-    in_map = trimap.copy()
-    in_map[(trimap != 1) & (trimap != 0)] = 1
-    in_map[(trimap == 1) | (trimap == 0)] = 0
-    in_map = cv2.dilate(
-        in_map,
-        np.ones(2 * window_radius + 1)
-    )
-    window_size = 2 * window_radius + 1
-    neighbors_size = window_size ** 2
-    h, w, c = image.shape
-    n = h * w
-    epsilon = epsilon / neighbors_size
-
-    mean_image, covar_mat = local_rgb_normal_distributions(image, window_radius, epsilon)
-
-    # Determine pixels and their local neighbors
-    indices = np.arange(h * w).reshape((h, w))
-    neighbors_indices = im2col(indices, [window_size, window_size])
-    in_map = in_map[window_radius + 1: -window_radius, window_radius + 1: -window_radius]
-
-    neighbors_indices = neighbors_indices[in_map != 0, :]
-    in_indices = neighbors_indices[:, (neighbors_size + 1) / 2]
-    pix_count = in_indices.shape[0]
-
-    # Prepare in & out data
-    image = image.reshape((n, c))
-    mean_image = mean_image.reshape((n, c))
-    flow_rows = np.zeros((neighbors_size, neighbors_size, pix_count))
-    flow_cols = np.zeros((neighbors_size, neighbors_size, pix_count))
-    flows = np.zeros((neighbors_size, neighbors_size, pix_count))
-
-    # Compute matting affinity
-    for i in range(indices.shape[0]):
-        neighbors = neighbors_indices[i, :]
-        shifted_window_colors = image[neighbors, :] - np.tile(mean_image[in_indices[i], :], neighbors.shape[1])
-        flows[:, :, i] = shifted_window_colors * (np.linalg.lstsq(covar_mat[:, :, in_indices[i]], shifted_window_colors.T))
-        neighbors = np.tile(neighbors, neighbors.shape[1])
-        flow_rows[:, :, 1] = neighbors
-        flow_cols[:, :, 1] = neighbors.T
-
-    flows = (flows + 1) / neighbors_size
-    w = csr_matrix((flows.flatten(), (flow_rows.flatten(), flow_cols.flatten())), shape=(n, n))
-
-    # Make sure it's symmetric
-    w = w + w.T
-
-    # Normalize
-    sum_w = np.sum(w.A, 1)
-    sum_w[sum_w < 0.05] = 1
-    w = spdiags(1 / sum_w.flatten(), 0, n, n) * w
-    return w

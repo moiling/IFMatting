@@ -4,30 +4,7 @@ import scipy
 from scipy.sparse import csr_matrix as csr, diags
 import numpy as np
 
-from utils.pcg import solve_cg
 from utils.utils import affinityMatrixToLaplacian
-
-
-def solve_alpha_2(w_cm, w_uu, w_l, n_p, tau, a_k, w_f, params):
-    d_cm = diags(csr.sum(w_cm, axis=1).A.ravel(), format='csr')
-    d_uu = diags(csr.sum(w_uu, axis=1).A.ravel(), format='csr')
-    d_l = diags(csr.sum(w_l, axis=1).A.ravel(), format='csr')
-
-    # (15)
-    l_ifm = (d_cm - w_cm).T.dot(d_cm - w_cm) + params['s_uu'] * (d_uu - w_uu) + params['s_l'] * (d_l - w_l)
-
-    if params['use_k_u']:
-        # (16)
-        A = l_ifm + params['lambda'] * tau + params['s_ku'] * n_p
-        b = (params['lambda'] * tau + params['s_ku'] * n_p).dot(w_f)
-    else:
-        # (19)
-        A = l_ifm + params['lambda'] * tau
-        b = params['lambda'] * tau * a_k
-
-    # use preconditioned conjugate gradient to solve the linear systems
-    solution = scipy.sparse.linalg.cg(A, b, x0=None, tol=1e-10, maxiter=10000, M=None, callback=report)
-    return solution[0]
 
 
 def solve_alpha(trimap, w_cm, w_uu, w_l, kToUconf, tau, a_k, kToU, params):
@@ -52,8 +29,8 @@ def solve_alpha(trimap, w_cm, w_uu, w_l, kToUconf, tau, a_k, kToU, params):
     A = A + L
 
     # use preconditioned conjugate gradient to solve the linear systems
-    solution = solve_cg(A, b, x0=None, rtol=1e-7, max_iter=2000, print_info=True)
-    return solution
+    solution = scipy.sparse.linalg.cg(A, b, x0=None, tol=1e-7, maxiter=20000, M=None, callback=report)
+    return solution[0]
 
 
 def report(x):

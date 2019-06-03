@@ -3,26 +3,6 @@
 # https://github.com/yaksoy/AffinityBasedMattingToolbox
 # by Yağız Aksoy.
 #
-############################################################################################
-# Copyright 2017, Yagiz Aksoy. All rights reserved.                                        #
-#                                                                                          #
-# This software is for academic use only. A redistribution of this                         #
-# software, with or without modifications, has to be for academic                          #
-# use only, while giving the appropriate credit to the original                            #
-# authors of the software. The methods implemented as a part of                            #
-# this software may be covered under patents or patent applications.                       #
-#                                                                                          #
-# THIS SOFTWARE IS PROVIDED BY THE AUTHOR ''AS IS'' AND ANY EXPRESS OR IMPLIED             #
-# WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND #
-# FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR         #
-# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR      #
-# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR #
-# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON #
-# ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING       #
-# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF     #
-# ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                                               #
-############################################################################################
-
 r"""
 The information flow alpha matting method is provided for academic use only.
 If you use the information flow alpha matting method for an academic
@@ -48,7 +28,7 @@ from IFM.local import local
 import matplotlib.pyplot as plt
 
 from IFM.solve_alpha import solve_alpha
-from utils.utils import patchBasedTrimming
+from utils.patch_based_trimming import patch_based_trimming
 
 
 def init_params(img, h, w):
@@ -101,11 +81,11 @@ def information_flow_matting(image, trimap, use_k_u=False):
     params['use_k_u'] = use_k_u
 
     if params['use_k_u']:
-        patchTrimmed = patchBasedTrimming(image, trimap, 0.25, 0.9, 1, 5)
+        patch_trimmed = patch_based_trimming(image, trimap, 0.25, 0.9, 1, 5)
 
         print('K-to-U information flow.')
         # w_f, n_p = k_to_u(alpha, params['k_ku'], feature_ku)
-        kToU, kToUconf = k_to_u(image, patchTrimmed, params['k_ku'], feature_ku)
+        kToU, kToUconf = k_to_u(image, patch_trimmed, params['k_ku'], feature_ku)
         a_k = None
     else:
         kToUconf = None

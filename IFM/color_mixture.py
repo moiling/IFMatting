@@ -7,7 +7,6 @@ import numpy as np
 from scipy.sparse import csr_matrix
 
 from IFM.find_non_local_neighbors import find_non_local_neighbors
-from utils.local_linear_embedding import local_linear_embedding
 from utils.utils import solve_for_weights
 
 """
@@ -30,35 +29,6 @@ from utils.utils import solve_for_weights
 % - xyWeight determines how much importance is given to the spatial
 %   coordinates in the nearest neighbor selection.
 """
-
-
-def color_mixture_2(image, trimap, k, features):
-    h, w, _ = image.shape
-    n = h * w
-
-    # MATLAB: need_search_map = trimap != 1 & trimap != 0
-    need_search_map = trimap.copy()
-    need_search_map[(trimap != 1) & (trimap != 0)] = 1
-    need_search_map[(trimap == 1) | (trimap == 0)] = 0
-
-    search_map = np.ones((h, w))
-
-    in_indices, neighbors_indices = find_non_local_neighbors(image, k, features, need_search_map, search_map)
-
-    flows = np.zeros((in_indices.shape[0], neighbors_indices.shape[1]))
-
-    # use lle to solve (1)
-    for i in range(in_indices.shape[0]):
-        flows[i, :] = local_linear_embedding(features[in_indices[i], :].T,
-                                             features[neighbors_indices[i, :].T, :],
-                                             1e-10)
-
-    flows = flows / np.tile(np.sum(flows, 1).reshape(flows.shape[0], 1), k)
-    in_indices = np.tile(in_indices.reshape(in_indices.shape[0], 1), k)
-
-    w_cm = csr_matrix((flows.flatten(), (in_indices.flatten(), neighbors_indices.flatten())), shape=(n, n))
-
-    return w_cm
 
 
 def color_mixture(image, trimap, k, features):
