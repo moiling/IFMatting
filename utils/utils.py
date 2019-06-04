@@ -2,8 +2,6 @@ import cv2
 import numpy as np
 import scipy
 
-from IFM.find_non_local_neighbors import find_non_local_neighbors
-
 import os
 import matplotlib.pyplot as plt
 

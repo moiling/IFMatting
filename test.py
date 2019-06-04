@@ -1,5 +1,6 @@
 from IFM.ifm import information_flow_matting
 from utils.utils import save_image, show_image
+import numpy as np
 
 if __name__ == '__main__':
 
@@ -12,6 +13,6 @@ if __name__ == '__main__':
                                            (file_name != 'net.png' and file_name != 'plasticbag.png'))  # 人工区分高透明度
     # save
     save_image(alpha_matte, './out/test/' + trimap_dir + '/', file_name, True)
-
+    np.savetxt('./out/test/' + trimap_dir + '/' + file_name + '.txt', alpha_matte)
     # show
     show_image(alpha_matte)
