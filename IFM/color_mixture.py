@@ -38,22 +38,19 @@ def color_mixture(image, trimap, k, features):
     is_unknown = np.logical_not(is_known)
 
     h, w, c = image.shape
-    N = h * w
+    n = h * w
 
-    if is_unknown is None:
-        is_unknown = np.ones((h, w), dtype=np.bool8)
+    out_map = np.ones((h, w), dtype=np.bool8)
 
-    outMap = np.ones((h, w), dtype=np.bool8)
+    in_ind, neigh_ind = find_non_local_neighbors(image, k, features, is_unknown, out_map)
 
-    inInd, neighInd = find_non_local_neighbors(image, k, features, is_unknown, outMap)
+    in_ind = np.repeat(in_ind, k).reshape(-1, k)
+    flows = solve_for_weights(features[in_ind] - features[neigh_ind], regularization_factor=1e-10)
 
-    inInd = np.repeat(inInd, k).reshape(-1, k)
-    flows = solve_for_weights(features[inInd] - features[neighInd], regularization_factor=1e-10)
-
-    i = inInd.flatten()
-    j = neighInd.flatten()
+    i = in_ind.flatten()
+    j = neigh_ind.flatten()
     v = flows.flatten()
 
-    W = csr_matrix((flows.flatten(), (inInd.flatten(), neighInd.flatten())), shape=(N, N))
+    W = csr_matrix((flows.flatten(), (in_ind.flatten(), neigh_ind.flatten())), shape=(n, n))
 
     return W

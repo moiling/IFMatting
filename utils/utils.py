@@ -38,7 +38,8 @@ def save_image(image, save_dir, file_name, grey=False):
         os.system(r"touch {}".format(save_dir + file_name))
 
     if grey:
-        plt.imsave(save_dir + file_name, image, cmap='Greys_r')
+        cv2.imwrite(save_dir + file_name, (image * 255).astype(np.int))
+        # plt.imsave(save_dir + file_name, image, cmap='Greys_r')
     else:
         print(image.shape)
         plt.imsave(save_dir + file_name, image)
