@@ -129,6 +129,17 @@ def solve_for_weights(z, regularization_factor=1e-3):
     return weights
 
 
+def local_linear_embedding(pt, neighbors, conditioner_mult):
+    corr = neighbors.dot(neighbors.T) + np.eye(neighbors.shape[0]) * conditioner_mult
+
+    pt_dot_n = neighbors.T.dot(pt)
+    alpha = 1 - np.sum(np.linalg.lstsq(corr, pt_dot_n, rcond=None)[0])  # 1 - sum(corr \ pt_dot_n)
+    beta = np.sum(np.linalg.lstsq(corr, np.ones((corr.shape[0], 1)), rcond=None)[0])  # sum of elements of inv(corr)
+    lagrange_mult = alpha / beta
+    w = np.linalg.lstsq(corr, (pt_dot_n + lagrange_mult), rcond=None)[0]
+    return w
+
+
 def affinityMatrixToLaplacian(A):
     return weights_to_laplacian(A, normalize=False)
 

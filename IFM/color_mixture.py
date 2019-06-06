@@ -1,37 +1,11 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-# @Time    : 2019-05-30 02:18
-# @Author  : moiling
-# @File    : color_mixture.py
 import numpy as np
 from scipy.sparse import csr_matrix
 
 from IFM.find_non_local_neighbors import find_non_local_neighbors
-from utils.utils import solve_for_weights
-
-"""
-% Color Mixture Non-local Pixel Affinities
-% This function implements the color-mixture information flow in
-% Yagiz Aksoy, Tunc Ozan Aydin, Marc Pollefeys, "Designing Effective 
-% Inter-Pixel Information Flow for Natural Image Matting", CVPR, 2017
-% when the input parameter 'useXYinLLEcomp' is false (default), and
-% the affinity definition used in
-% Xiaowu Chen, Dongqing Zou, Qinping Zhao, Ping Tan, "Manifold 
-% preserving edit propagation", ACM TOG, 2012
-% when 'useXYinLLEcomp' is true.
-% All parameters other than image are optional. The output is a sparse
-% matrix which has non-zero element for the non-local neighbors of
-% the pixels given by binary map inMap.
-% - K defines the number of neighbors from which LLE weights are 
-%   computed.
-% - outMap is a binary map that defines where the nearest neighbor 
-%   search is done.
-% - xyWeight determines how much importance is given to the spatial
-%   coordinates in the nearest neighbor selection.
-"""
+from utils.utils import solve_for_weights, local_linear_embedding
 
 
-def color_mixture(image, trimap, k, features):
+def color_mixture(image, trimap, k, features, use_xy_in_lle=False):
     is_fg = trimap > 0.8
     is_bg = trimap < 0.2
     is_known = np.logical_or(is_fg, is_bg)
@@ -44,13 +18,12 @@ def color_mixture(image, trimap, k, features):
 
     in_ind, neigh_ind = find_non_local_neighbors(image, k, features, is_unknown, out_map)
 
+    if not use_xy_in_lle:
+        features = features[:, :-2]
+
     in_ind = np.repeat(in_ind, k).reshape(-1, k)
+
     flows = solve_for_weights(features[in_ind] - features[neigh_ind], regularization_factor=1e-10)
 
-    i = in_ind.flatten()
-    j = neigh_ind.flatten()
-    v = flows.flatten()
-
-    W = csr_matrix((flows.flatten(), (in_ind.flatten(), neigh_ind.flatten())), shape=(n, n))
-
-    return W
+    w_cm = csr_matrix((flows.flatten(), (in_ind.flatten(), neigh_ind.flatten())), shape=(n, n))
+    return w_cm
