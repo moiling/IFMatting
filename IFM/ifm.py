@@ -1,8 +1,6 @@
-# The information flow alpha matting method implementation in this file
-# is based on
+# The information flow alpha matting method implementation in this file is based on
 # https://github.com/yaksoy/AffinityBasedMattingToolbox
 # by Yağız Aksoy.
-#
 r"""
 The information flow alpha matting method is provided for academic use only.
 If you use the information flow alpha matting method for an academic
@@ -18,8 +16,6 @@ year={2017},
 """
 import cv2
 import numpy as np
-
-from scipy.sparse import diags
 
 from IFM.color_mixture import color_mixture as cm
 from IFM.intra_u import intra_u as uu
@@ -55,7 +51,8 @@ def init_params(img):
         'xyw_cm': 1,
         'xyw_ku': 10,
         'xyw_uu': 0.05,
-        'use_k_u': True
+        'use_k_u': True,
+        'use_patch_trimmed': True
     }
 
     # ˜x and ˜y are the image coordinates normalized by image width and height
@@ -66,56 +63,52 @@ def init_params(img):
     y = y.flatten()
 
     feature_cm = compute_features(img, params['xyw_cm'], x, y, w, h)
-
     feature_ku = compute_features(img, params['xyw_ku'], x, y, w, h)
-
     feature_uu = compute_features(img, params['xyw_uu'], x, y, w, h)
 
     return params, feature_cm, feature_ku, feature_uu
 
 
 def information_flow_matting(image, trimap, use_k_u=False):
-    # load image
     image = cv2.imread(image)
     trimap = cv2.imread(trimap)
 
-    # im2double
     image = image / 255
     trimap = trimap[:, :, 0] / 255
 
     print('Start matting.')
-
     params, feature_cm, feature_ku, feature_uu = init_params(image)
 
-    # TODO 判断是否执行k_u
+    # TODO detect highly transparent
     params['use_k_u'] = use_k_u
 
-    # TODO edgeTrimmed
+    # TODO edge trimmed
 
     print('Color-mixture information flow.')
     w_cm = cm(image, trimap, params['k_cm'], feature_cm)
 
     if params['use_k_u']:
-        patch_trimmed = patch_based_trimming(image, trimap, 0.25, 0.9, 1, 5)
-
         print('K-to-U information flow.')
-        kToU, kToUconf = k_to_u(image, patch_trimmed, params['k_ku'], feature_ku)
+        if params['use_patch_trimmed']:
+            print('\tuse patch trimmed')
+            patch_trimmed = patch_based_trimming(image, trimap, 0.25, 0.9, 1, 5)
+            w_f, h = k_to_u(image, patch_trimmed, params['k_ku'], feature_ku)
+        else:
+            w_f, h = k_to_u(image, trimap, params['k_ku'], feature_ku)
+
         a_k = None
     else:
-        kToUconf = None
-        kToU = None
-        w_f = None
-        n_p = None
+        h = w_f = None
 
         # αK is a row vector with pth entry being 1 if p ∈ F and 0 otherwise
         a_k = trimap.flatten()
         a_k[a_k != 1] = 0  # set all non foreground pixels to 0
         a_k[a_k == 1] = 1  # set all foreground pixels to 1
 
-    print('intra u information flow.')
+    print('Intra-u information flow.')
     w_uu = uu(image, trimap, params['k_uu'], feature_uu)
 
-    print('local information flow.')
+    print('Local information flow.')
     w_l = local(image, trimap)
 
     alpha = trimap.flatten()
@@ -123,12 +116,8 @@ def information_flow_matting(image, trimap, use_k_u=False):
     known[(alpha == 1) | (alpha == 0)] = 1
     known[(alpha != 1) & (alpha != 0)] = 0
 
-    # Tau is an N × N diagonal matrix with diagonal entry (p, p) 1 if p ∈ K and 0 otherwise
-    tau = diags(known, format='csr')
-
     print('Solving for alphas.')
-
-    solution = solve_alpha(trimap, w_cm, w_uu, w_l, kToUconf, tau, a_k, kToU, params)
+    solution = solve_alpha(trimap, w_cm, w_uu, w_l, h, a_k, w_f, params)
 
     alpha_matte = np.clip(solution, 0, 1).reshape(trimap.shape)
 

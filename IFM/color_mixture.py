@@ -2,7 +2,7 @@ import numpy as np
 from scipy.sparse import csr_matrix
 
 from IFM.find_non_local_neighbors import find_non_local_neighbors
-from utils.utils import solve_for_weights, local_linear_embedding
+from utils.utils import solve_for_weights
 
 
 def color_mixture(image, trimap, k, features, use_xy_in_lle=False):
