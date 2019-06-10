@@ -4,13 +4,13 @@ from utils.utils import resize_nearest, inv2, vec_vec_outer, pixel_coordinates
 
 
 def estimate_foreground_background(
-    input_image,
-    input_alpha,
-    min_size=2,
-    growth_factor=2,
-    regularization=1e-5,
-    n_iter_func=lambda w, h: 5 if max(w, h) <= 64 else 1,
-    print_info=False,
+        input_image,
+        input_alpha,
+        min_size=2,
+        growth_factor=2,
+        regularization=1e-5,
+        n_iter_func=lambda w, h: 5 if max(w, h) <= 64 else 1,
+        print_info=False,
 ):
     """
     Estimate foreground and background of an image using a multilevel
@@ -41,8 +41,8 @@ def estimate_foreground_background(
         Background image.
     """
 
-    assert(min_size >= 1)
-    assert(growth_factor > 1.0)
+    assert (min_size >= 1)
+    assert (growth_factor > 1.0)
     h0, w0 = input_image.shape[:2]
 
     if print_info:

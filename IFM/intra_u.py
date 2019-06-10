@@ -7,7 +7,6 @@ from IFM.find_non_local_neighbors import find_non_local_neighbors
 
 
 def intra_u(image, trimap, k, features):
-
     h, w, c = image.shape
     n = h * w
     is_fg = trimap > 0.8

@@ -12,9 +12,7 @@ def local(image, trimap, window_radius=1, epsilon=1e-7):
     is_known = np.logical_or(is_fg, is_bg)
     is_unknown = np.logical_not(is_known)
 
-    # dilUnk = cv2.dilate(is_unknown, np.ones((window_radius, window_radius), np.uint8))
-
-    dilUnk = imdilate(is_unknown, window_radius)
+    dil_unk = imdilate(is_unknown, window_radius)
 
     window_size = (2 * window_radius + 1) ** 2
 
@@ -28,34 +26,34 @@ def local(image, trimap, window_radius=1, epsilon=1e-7):
     inv_cov = np.linalg.inv(covariance + epsilon / window_size * np.eye(3, 3))
 
     indices = np.arange(width * height).reshape(height, width)
-    neighInd = make_windows(indices)
+    neigh_ind = make_windows(indices)
 
-    inMap = dilUnk[window_radius:-window_radius, window_radius:-window_radius]
+    in_map = dil_unk[window_radius:-window_radius, window_radius:-window_radius]
 
-    neighInd = neighInd.reshape(-1, window_size)
+    neigh_ind = neigh_ind.reshape(-1, window_size)
 
-    neighInd = neighInd[inMap.flatten()]
+    neigh_ind = neigh_ind[in_map.flatten()]
 
-    inInd = neighInd[:, window_size // 2]
+    in_ind = neigh_ind[:, window_size // 2]
 
     image = image.reshape(-1, 3)
     means = means.reshape(-1, 3)
     inv_cov = inv_cov.reshape(-1, 3, 3)
 
-    centered_neighbors = image[neighInd] - means[inInd].reshape(-1, 1, 3)
+    centered_neighbors = image[neigh_ind] - means[in_ind].reshape(-1, 1, 3)
 
-    weights = mul_mat_mat_matT(centered_neighbors, inv_cov[inInd], centered_neighbors)
+    weights = mul_mat_mat_matT(centered_neighbors, inv_cov[in_ind], centered_neighbors)
 
-    flowCols = np.repeat(neighInd, window_size, axis=1).reshape(-1, window_size, window_size)
-    flowRows = flowCols.transpose(0, 2, 1)
+    flow_cols = np.repeat(neigh_ind, window_size, axis=1).reshape(-1, window_size, window_size)
+    flow_rows = flow_cols.transpose(0, 2, 1)
 
     weights = (weights + 1) / window_size
 
-    flowRows = flowRows.flatten()
-    flowCols = flowCols.flatten()
+    flow_rows = flow_rows.flatten()
+    flow_cols = flow_cols.flatten()
     weights = weights.flatten()
 
-    W = csc_matrix((weights, (flowRows, flowCols)), shape=(n, n))
+    W = csc_matrix((weights, (flow_rows, flow_cols)), shape=(n, n))
 
     W = W + W.T
 

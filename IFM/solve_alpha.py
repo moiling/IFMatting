@@ -28,7 +28,7 @@ def solve_alpha(trimap, w_cm, w_uu, w_l, h, a_k, w_f, params):
     A = A + L
 
     # use preconditioned conjugate gradient to solve the linear systems
-    solution = scipy.sparse.linalg.cg(A, b, x0=None, tol=1e-10, maxiter=2000, M=None, callback=None)
+    solution = scipy.sparse.linalg.cg(A, b, x0=None, tol=1e-6, maxiter=2000, M=None, callback=None)
     return solution[0]
 
 

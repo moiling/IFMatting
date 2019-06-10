@@ -140,7 +140,7 @@ def local_linear_embedding(pt, neighbors, conditioner_mult):
     return w
 
 
-def affinityMatrixToLaplacian(A):
+def affinity_matrix_to_laplacian(A):
     return weights_to_laplacian(A, normalize=False)
 
 
@@ -159,11 +159,11 @@ def weights_to_laplacian(W, normalize=True):
 
 def make_windows(image, radius=1):
     return np.stack([image[
-        y:y + image.shape[0] - 2 * radius,
-        x:x + image.shape[1] - 2 * radius]
-        for x in range(2 * radius + 1)
-        for y in range(2 * radius + 1)],
-        axis=2)
+                     y:y + image.shape[0] - 2 * radius,
+                     x:x + image.shape[1] - 2 * radius]
+                     for x in range(2 * radius + 1)
+                     for y in range(2 * radius + 1)],
+                    axis=2)
 
 
 def pad(image, r=1):

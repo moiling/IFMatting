@@ -1,2 +1,3 @@
 __all__ = ['foreground_background',
-           'utils']
+           'utils',
+           'patch_based_trimming']
