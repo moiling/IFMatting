@@ -4,7 +4,7 @@ import scipy
 from scipy.sparse import csr_matrix as csr, diags
 import numpy as np
 
-from utils.utils import affinity_matrix_to_laplacian
+from utils.utils import affinity_matrix_to_laplacian, solve_cg
 
 
 def solve_alpha(trimap, w_cm, w_uu, w_l, h, a_k, w_f, params):
@@ -28,8 +28,21 @@ def solve_alpha(trimap, w_cm, w_uu, w_l, h, a_k, w_f, params):
     A = A + L
 
     # use preconditioned conjugate gradient to solve the linear systems
-    solution = scipy.sparse.linalg.cg(A, b, x0=None, tol=1e-6, maxiter=2000, M=None, callback=None)
-    return solution[0]
+    # solution = scipy.sparse.linalg.cg(A, b, x0=None, tol=1e-6, maxiter=2000, M=None, callback=None)
+    # return solution[0]
+    inv_diag = 1 / A.diagonal()
+
+    def precondition(r):
+        return r * inv_diag
+
+    solution = solve_cg(
+        A,
+        b,
+        max_iter=2000,
+        rtol=1e-6,
+        precondition=precondition)
+
+    return solution
 
 
 def report(x):

@@ -3,8 +3,8 @@ from utils.utils import save_image, show_image, stack_alpha
 import matplotlib.pyplot as plt
 
 if __name__ == '__main__':
-    file_name = 'troll.png'
-    alpha_sub_dir = 'demo/Trimap1/'
+    file_name = 'elephant.png'
+    alpha_sub_dir = 'test/Trimap1/'
 
     alpha_dir = './out/'
     image_dir = './data/input_lowres/'
